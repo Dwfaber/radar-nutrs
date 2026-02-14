@@ -4,14 +4,12 @@ import {
   format, 
   parseISO, 
   startOfWeek, 
-  endOfWeek, 
   addDays, 
   addWeeks,
   subWeeks,
   differenceInDays,
   isToday,
-  isWeekend,
-  isSameDay
+  isWeekend
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { CicloComMetrica } from '@/types'
@@ -132,7 +130,7 @@ function PhaseStatusIcon({ status }: { status: PhaseStatus }) {
 }
 
 // Mini pipeline com ícones dentro da barra
-function MiniPipeline({ phases, ciclo }: { phases: Phase[]; ciclo: CicloComMetrica }) {
+function MiniPipeline({ phases }: { phases: Phase[] }) {
   const [hoveredPhase, setHoveredPhase] = useState<Phase | null>(null)
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 })
 
@@ -211,10 +209,13 @@ function MiniPipeline({ phases, ciclo }: { phases: Phase[]; ciclo: CicloComMetri
   )
 }
 
-export function CalendarTimeline({ ciclos, onSelectCiclo }: CalendarTimelineProps) {
+export function CalendarTimeline({ ciclos }: CalendarTimelineProps) {
   const navigate = useNavigate()
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [baseDate, setBaseDate] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }))
+  const [baseDate, setBaseDate] = useState(() => {
+  const hoje = new Date()
+  return startOfWeek(subWeeks(hoje, 1), { weekStartsOn: 1 })
+})
   const [weeksToShow, setWeeksToShow] = useState(4)
   const [hoveredCiclo, setHoveredCiclo] = useState<number | null>(null)
 
@@ -489,7 +490,7 @@ export function CalendarTimeline({ ciclos, onSelectCiclo }: CalendarTimelineProp
                             #{ciclo.solicitacao_compra_id}
                           </span>
                           {pos.width > 150 && (
-                            <MiniPipeline phases={phases} ciclo={ciclo} />
+                            <MiniPipeline phases={phases} />
                           )}
                         </div>
 

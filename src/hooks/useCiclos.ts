@@ -9,6 +9,41 @@ function getCicloStatus(ciclo: Ciclo): CicloComMetrica['status'] {
   return 'planejamento'
 }
 
+// Calcula métricas a partir dos diários
+function calcularMetricasDeDiarios(diarios: any[]): Metrica | undefined {
+  if (!diarios || diarios.length === 0) return undefined
+
+  const totalPlanejado = diarios.reduce((acc, d) => acc + (d.planejado_quantidade || 0), 0)
+  const totalRealizado = diarios.reduce((acc, d) => acc + (d.realizado_quantidade || 0), 0)
+  const custoTotal = diarios.reduce((acc, d) => acc + (d.custo_realizado || 0), 0)
+
+  if (totalPlanejado === 0) return undefined
+
+  const eficiencia = (totalRealizado / totalPlanejado) * 100
+
+  return {
+    id: 0,
+    solicitacao_compra_id: diarios[0].solicitacao_compra_id,
+    filial_id: diarios[0].filial_id || 0,
+    semana_de: '',
+    semana_ate: '',
+    total_planejado: totalPlanejado,
+    total_realizado: totalRealizado,
+    total_extras: 0,
+    eficiencia_producao: Math.round(eficiencia * 100) / 100,
+    custo_planejado: 0,
+    custo_realizado: custoTotal,
+    custo_por_refeicao_plan: 0,
+    custo_por_refeicao_real: totalRealizado > 0 ? custoTotal / totalRealizado : 0,
+    variacao_custo: 0,
+    total_acrescimos: 0,
+    valor_acrescimos: 0,
+    taxa_acrescimo: 0,
+    trend_direction: null,
+    calculated_at: new Date().toISOString()
+  }
+}
+
 export function useCiclos(filialId?: number) {
   const [ciclos, setCiclos] = useState<CicloComMetrica[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,17 +69,28 @@ export function useCiclos(filialId?: number) {
 
         if (ciclosError) throw ciclosError
 
-        // Buscar métricas
-        const { data: metricasData, error: metricasError } = await supabase
-          .from(TABLES.METRICAS)
-          .select('*')
+        // Buscar diários para calcular métricas
+        const { data: diariosData, error: diariosError } = await supabase
+          .from(TABLES.DIARIOS)
+          .select('solicitacao_compra_id, planejado_quantidade, realizado_quantidade, custo_realizado')
 
-        if (metricasError) throw metricasError
+        if (diariosError) throw diariosError
 
-        // Combinar ciclos com métricas
+        // Agrupar diários por ciclo
+        const diariosPorCiclo = new Map<number, any[]>()
+        diariosData?.forEach((d: any) => {
+          const existing = diariosPorCiclo.get(d.solicitacao_compra_id) || []
+          existing.push(d)
+          diariosPorCiclo.set(d.solicitacao_compra_id, existing)
+        })
+
+        // Calcular métricas para cada ciclo
         const metricasMap = new Map<number, Metrica>()
-        metricasData?.forEach((m: Metrica) => {
-          metricasMap.set(m.solicitacao_compra_id, m)
+        diariosPorCiclo.forEach((diarios, solicitacaoCompraId) => {
+          const metrica = calcularMetricasDeDiarios(diarios)
+          if (metrica) {
+            metricasMap.set(solicitacaoCompraId, metrica)
+          }
         })
 
         const ciclosComMetricas: CicloComMetrica[] = (ciclosData || []).map((c: Ciclo) => ({
@@ -88,13 +134,6 @@ export function useCicloDetalhe(solicitacaoCompraId: number) {
 
         if (cicloError) throw cicloError
 
-        // Métrica
-        const { data: metricaData } = await supabase
-          .from(TABLES.METRICAS)
-          .select('*')
-          .eq('solicitacao_compra_id', solicitacaoCompraId)
-          .single()
-
         // Diários
         const { data: diariosData, error: diariosError } = await supabase
           .from(TABLES.DIARIOS)
@@ -103,6 +142,9 @@ export function useCicloDetalhe(solicitacaoCompraId: number) {
           .order('data', { ascending: true })
 
         if (diariosError) throw diariosError
+
+        // Calcular métrica a partir dos diários
+        const metricaCalculada = calcularMetricasDeDiarios(diariosData || [])
 
         // Acréscimos
         const { data: acrescimosData, error: acrescimosError } = await supabase
@@ -114,7 +156,7 @@ export function useCicloDetalhe(solicitacaoCompraId: number) {
 
         setCiclo({
           ...cicloData,
-          metrica: metricaData,
+          metrica: metricaCalculada,
           status: getCicloStatus(cicloData)
         })
         setDiarios(diariosData || [])

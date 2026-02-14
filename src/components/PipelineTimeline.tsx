@@ -1,4 +1,4 @@
-import { format, parseISO, differenceInDays, isWithinInterval, startOfWeek, endOfWeek } from 'date-fns'
+import { format, parseISO, differenceInDays, isWithinInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { CicloComMetrica } from '@/types'
 import { 

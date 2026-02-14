@@ -6,7 +6,6 @@ import {
   TrendingUp,
   CheckCircle2,
   XCircle,
-  Package,
   RefreshCw,
   ChevronRight,
   Target,

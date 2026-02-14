@@ -61,7 +61,7 @@ function getStatusIcon(status: PhaseStatus) {
   }
 }
 
-export function GanttView({ ciclo, diarios, acrescimos, onClose }: GanttViewProps) {
+export function GanttView({ ciclo, diarios: _diarios, acrescimos, onClose }: GanttViewProps) {
   const [activeView, setActiveView] = useState<'gantt' | 'list'>('gantt')
   
   const semanaInicio = parseISO(ciclo.semana_de)

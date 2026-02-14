@@ -56,7 +56,7 @@ export function useAssertividade() {
       try {
         setLoading(true)
 
-        // Buscar ciclos com métricas
+        // Buscar ciclos não cancelados
         const { data: ciclos, error: ciclosError } = await supabase
           .from(TABLES.CICLOS)
           .select('*')
@@ -65,16 +65,30 @@ export function useAssertividade() {
 
         if (ciclosError) throw ciclosError
 
-        const { data: metricas, error: metricasError } = await supabase
-          .from(TABLES.METRICAS)
-          .select('*')
+        // Buscar diários (tem os dados reais de planejado/realizado)
+        const { data: diarios, error: diariosError } = await supabase
+          .from(TABLES.DIARIOS)
+          .select('solicitacao_compra_id, planejado_quantidade, realizado_quantidade, custo_referencia')
 
-        if (metricasError) throw metricasError
+        if (diariosError) throw diariosError
 
-        // Criar mapa de métricas
-        const metricasMap = new Map()
-        metricas?.forEach((m: any) => {
-          metricasMap.set(m.solicitacao_compra_id, m)
+        // Agrupar diários por ciclo e calcular totais
+        const metricasCalculadas = new Map<number, {
+          total_planejado: number
+          total_realizado: number
+          custo_total: number
+        }>()
+
+        diarios?.forEach((d: any) => {
+          const existing = metricasCalculadas.get(d.solicitacao_compra_id) || {
+            total_planejado: 0,
+            total_realizado: 0,
+            custo_total: 0
+          }
+          existing.total_planejado += d.planejado_quantidade || 0
+          existing.total_realizado += d.realizado_quantidade || 0
+          existing.custo_total += (d.custo_referencia || 0) * (d.planejado_quantidade || 0)
+          metricasCalculadas.set(d.solicitacao_compra_id, existing)
         })
 
         // Analisar cada ciclo
@@ -97,13 +111,13 @@ export function useAssertividade() {
         let ciclosComDados = 0
 
         ciclos?.forEach((ciclo: any) => {
-          const metrica = metricasMap.get(ciclo.solicitacao_compra_id)
+          const metrica = metricasCalculadas.get(ciclo.solicitacao_compra_id)
           if (!metrica || !metrica.total_planejado || metrica.total_planejado === 0) return
 
           ciclosComDados++
           
           const planejado = metrica.total_planejado
-          const realizado = metrica.total_realizado || 0
+          const realizado = metrica.total_realizado
           const variacao = ((realizado - planejado) / planejado) * 100
 
           // Inicializar filial se não existir

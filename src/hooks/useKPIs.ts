@@ -24,23 +24,30 @@ export function useKPIs() {
           .eq('cancelado', false)
           .is('concluido_em', null)
 
-        // Somas de métricas
-        const { data: metricas } = await supabase
-          .from(TABLES.METRICAS)
-          .select('total_planejado, total_realizado, eficiencia_producao, custo_por_refeicao_real')
+        // Buscar diários (dados reais de planejado/realizado)
+        const { data: diarios } = await supabase
+          .from(TABLES.DIARIOS)
+          .select('planejado_quantidade, realizado_quantidade, custo_referencia, eficiencia')
 
         // Acréscimos
         const { data: acrescimos } = await supabase
           .from(TABLES.ACRESCIMOS)
           .select('detalhe_valor_total')
 
-        const totalPlanejado = metricas?.reduce((acc, m) => acc + (m.total_planejado || 0), 0) || 0
-        const totalRealizado = metricas?.reduce((acc, m) => acc + (m.total_realizado || 0), 0) || 0
-        const eficienciaMedia = metricas?.length 
-          ? metricas.reduce((acc, m) => acc + (m.eficiencia_producao || 0), 0) / metricas.length 
-          : 0
-        const custoMedio = metricas?.length
-          ? metricas.reduce((acc, m) => acc + (m.custo_por_refeicao_real || 0), 0) / metricas.length
+        // Calcular totais a partir dos diários
+        const totalPlanejado = diarios?.reduce((acc, d) => acc + (d.planejado_quantidade || 0), 0) || 0
+        const totalRealizado = diarios?.reduce((acc, d) => acc + (d.realizado_quantidade || 0), 0) || 0
+        
+        // Eficiência média (dos diários que tem eficiência > 0)
+        const diariosComEficiencia = diarios?.filter(d => d.eficiencia && d.eficiencia > 0) || []
+        const eficienciaMedia = diariosComEficiencia.length > 0
+          ? diariosComEficiencia.reduce((acc, d) => acc + (d.eficiencia || 0), 0) / diariosComEficiencia.length
+          : totalPlanejado > 0 ? (totalRealizado / totalPlanejado) * 100 : 0
+
+        // Custo médio por refeição (média dos custos de referência)
+        const diariosComCusto = diarios?.filter(d => d.custo_referencia && d.custo_referencia > 0) || []
+        const custoMedio = diariosComCusto.length > 0
+          ? diariosComCusto.reduce((acc, d) => acc + (d.custo_referencia || 0), 0) / diariosComCusto.length
           : 0
 
         const totalAcrescimos = acrescimos?.length || 0
